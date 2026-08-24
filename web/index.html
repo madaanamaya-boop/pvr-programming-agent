@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>PVR Programming Intelligence — Delhi-NCR</title>
+<style>
+  :root{
+    --bg:#0b0d12; --panel:#141821; --panel2:#1b202b; --line:#262c3a;
+    --text:#e8ecf4; --muted:#8b95a8; --accent:#ffb020; --pvr:#f5c518;
+    --good:#37d67a; --warn:#ff9f43; --bad:#ff5c5c; --blue:#4aa8ff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  header{display:flex;align-items:center;gap:16px;padding:16px 24px;
+    background:linear-gradient(90deg,#1a1205,#0b0d12);border-bottom:1px solid var(--line)}
+  .logo{font-weight:800;font-size:20px;color:var(--pvr);letter-spacing:.5px}
+  .logo span{color:var(--text);font-weight:400;font-size:14px}
+  header .spacer{flex:1}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;padding:14px 24px;align-items:center}
+  select,button{background:var(--panel2);color:var(--text);border:1px solid var(--line);
+    border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer}
+  button.active{background:var(--pvr);color:#111;border-color:var(--pvr);font-weight:600}
+  .updated{color:var(--muted);font-size:12px;margin-left:auto}
+  .grid{display:grid;gap:14px;padding:0 24px 24px}
+  .kpis{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+  .kpi .label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.6px}
+  .kpi .value{font-size:30px;font-weight:800;margin-top:6px}
+  .kpi .sub{color:var(--muted);font-size:12px;margin-top:2px}
+  .cols{grid-template-columns:1.4fr 1fr}
+  @media(max-width:900px){.cols{grid-template-columns:1fr}}
+  h3{margin:0 0 12px;font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600;cursor:pointer;position:sticky;top:0;background:var(--panel)}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .bar{height:8px;border-radius:5px;background:var(--panel2);overflow:hidden;min-width:80px}
+  .bar>i{display:block;height:100%}
+  .chip{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+  .chip.PVR,.chip.INOX{background:#3a2c05;color:var(--pvr)}
+  .chip.Cinepolis,.chip.Miraj,.chip.Delite,.chip.Other{background:#20283a;color:var(--blue)}
+  .scroll{max-height:440px;overflow:auto}
+  .split{display:flex;height:26px;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+  .split>div{display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#111}
+  .tabrow{display:flex;gap:8px;margin-bottom:12px}
+  .empty{color:var(--muted);text-align:center;padding:40px}
+  a.sess{color:var(--blue);cursor:pointer;text-decoration:none}
+  #modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:10}
+  #modal .card{width:min(680px,92vw)}
+  .close{float:right;color:var(--muted);cursor:pointer}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">PVR<span> · Programming Intelligence</span></div>
+  <div class="spacer"></div>
+  <div style="color:var(--muted);font-size:13px">Cinépolis · Delhi-NCR — <span style="color:var(--good)">Real Occupancy</span> &amp; Content Allocation</div>
+</header>
+
+<div class="controls">
+  <label style="color:var(--muted)">Date</label>
+  <select id="date"></select>
+  <button data-chain="" class="active" onclick="setChain(this,'')">All chains</button>
+  <button data-chain="pvr" onclick="setChain(this,'pvr')">PVR / INOX only</button>
+  <button onclick="downloadCSV()">⬇ Export CSV</button>
+  <span class="updated" id="updated"></span>
+</div>
+
+<div class="grid kpis"></div>
+
+<div class="grid kpis" id="kpis"></div>
+
+<div class="grid cols">
+  <div class="card">
+    <h3>Movies — shows &amp; occupancy across Delhi-NCR</h3>
+    <div class="scroll"><table id="movies"><thead><tr>
+      <th>Movie</th><th class="num">Shows</th><th>Avg occupancy</th>
+    </tr></thead><tbody></tbody></table></div>
+  </div>
+  <div class="card">
+    <h3>PVR-group vs competition (share of shows)</h3>
+    <div class="split" id="share"></div>
+    <h3 style="margin-top:18px">Fill mix — all shows</h3>
+    <div class="split" id="fillmix"></div>
+    <div style="margin-top:20px"><h3>Cinemas by shows</h3>
+      <div class="scroll" style="max-height:300px"><table id="cinemas"><thead><tr>
+        <th>Cinema</th><th>Chain</th><th class="num">Shows</th><th class="num">Occ%</th>
+      </tr></thead><tbody></tbody></table></div>
+    </div>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card" style="border-color:var(--pvr)">
+    <h3 style="color:var(--pvr)">🎯 Programming recommendations — where a swap could lift sales</h3>
+    <div id="recsummary" style="margin-bottom:10px;color:var(--muted)"></div>
+    <div class="scroll" style="max-height:360px"><table id="recs"><thead><tr>
+      <th>Slot</th><th>Cinema</th><th>Chain</th><th>Currently (weakest)</th>
+      <th>Suggested swap</th><th class="num">Demand</th><th class="num">Rival shows</th><th class="num">Est. +tickets</th>
+    </tr></thead><tbody></tbody></table></div>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h3>8 KPIs — content &amp; allocation (PVR-INOX vs Cinepolis)</h3>
+    <div id="kpihead" style="margin-bottom:10px"></div>
+    <div class="scroll" style="max-height:420px"><table id="kpis"><thead><tr>
+      <th>Movie</th><th class="num">Shows</th><th class="num">Adm/Show*</th><th class="num">Occ%</th>
+      <th>Alloc idx</th><th class="num">Prime%</th><th class="num">Catchment%</th>
+      <th class="num">PVR÷Cine</th><th class="num">Opp. shows</th>
+    </tr></thead><tbody></tbody></table></div>
+    <div style="color:var(--muted);font-size:11px;margin-top:8px">*Admissions estimated from BMS fill-bucket × nominal capacity (exact seat counts are encrypted by BMS). Show counts, chain split, daypart &amp; catchment are exact.</div>
+  </div>
+</div>
+
+<div class="grid cols">
+  <div class="card">
+    <h3>Share of shows vs share of demand — allocation diagnosis</h3>
+    <div class="scroll" style="max-height:320px"><table id="alloc"><thead><tr>
+      <th>Film</th><th class="num">Demand%</th><th class="num">Show%</th><th class="num">Index</th><th>Diagnosis</th>
+    </tr></thead><tbody></tbody></table></div>
+  </div>
+  <div class="card">
+    <h3>PVR-INOX vs Cinepolis — head to head</h3>
+    <div class="scroll" style="max-height:320px"><table id="h2h"><thead><tr>
+      <th>Movie</th><th class="num">PVR shows</th><th class="num">Cine shows</th><th class="num">Gap</th><th class="num">PVR occ</th><th class="num">Cine occ</th>
+    </tr></thead><tbody></tbody></table></div>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h3>All shows — occupancy (click a show for fill velocity)</h3>
+    <div class="scroll"><table id="sessions"><thead><tr>
+      <th>Cinema</th><th>Chain</th><th>Movie</th><th>Fmt</th><th>Time</th>
+      <th>Fill status</th><th class="num">Booked</th><th class="num">Seats</th><th>Occupancy</th><th>Book</th>
+    </tr></thead><tbody></tbody></table></div>
+  </div>
+</div>
+
+<div id="modal" onclick="if(event.target.id==='modal')closeModal()">
+  <div class="card">
+    <span class="close" onclick="closeModal()">✕</span>
+    <h3 id="mtitle">Fill velocity</h3>
+    <div id="chart"></div>
+  </div>
+</div>
+
+<script>
+let CHAIN="", DATE="", SUMMARY=null, SESSIONS=[], RECS={recommendations:[]}, KPI={movies:[]}, ALLOC=[], H2H={movies:[]};
+
+function fmtN(n){return (n||0).toLocaleString('en-IN')}
+const FILLCOL={'Available':'var(--good)','Fast Filling':'var(--warn)','Almost Full':'var(--bad)','Sold Out / Closed':'var(--muted)','Unknown':'var(--muted)'};
+function fillChip(r){const l=r.fill_label||'—';const c=FILLCOL[l]||'var(--muted)';
+  return `<span class="chip" style="background:${c}22;color:${c}">${l}</span>`}
+function occColor(o){if(o==null)return'var(--muted)';return o>=75?'var(--good)':o>=45?'var(--warn)':'var(--bad)'}
+function bar(o){if(o==null)return'<span style="color:var(--muted)">—</span>';
+  return `<div style="display:flex;gap:8px;align-items:center"><div class="bar" style="flex:1">
+    <i style="width:${Math.min(100,o)}%;background:${occColor(o)}"></i></div>
+    <span style="color:${occColor(o)};width:44px;text-align:right">${o}%</span></div>`}
+
+async function loadDates(){
+  const d=await (await fetch('/api/dates')).json();
+  const sel=document.getElementById('date');
+  sel.innerHTML=d.map(x=>`<option>${x}</option>`).join('')||`<option>${new Date().toISOString().slice(0,10)}</option>`;
+  DATE=sel.value; sel.onchange=()=>{DATE=sel.value;refresh()};
+}
+function setChain(btn,c){document.querySelectorAll('[data-chain]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');CHAIN=c;refresh()}
+
+async function refresh(){
+  const q=`?date=${DATE}&chain=${CHAIN}`;
+  SUMMARY=await (await fetch('/api/summary'+q)).json();
+  SESSIONS=await (await fetch('/api/sessions'+q)).json();
+  RECS=await (await fetch('/api/recommendations'+q)).json();
+  KPI=await (await fetch('/api/kpis'+q.replace('chain='+CHAIN, CHAIN==='pvr'?'group=PVR-INOX':''))).json();
+  ALLOC=await (await fetch('/api/allocation'+q)).json();
+  H2H=await (await fetch('/api/head2head'+q)).json();
+  renderKPIs();renderMovies();renderShare();renderCinemas();renderSessions();renderRecs();
+  renderKpiTable();renderAlloc();renderH2H();
+  document.getElementById('updated').textContent=
+    SUMMARY.last_updated?('Last crawl: '+new Date(SUMMARY.last_updated).toLocaleString('en-IN')):'No data yet';
+}
+
+function renderKPIs(){
+  const s=SUMMARY;
+  const k=[
+    ['Total shows',fmtN(s.total_shows),'Cinépolis · '+s.date],
+    ['Avg occupancy',(s.avg_occupancy||0)+'%','real (from seat maps)'],
+    ['Est. admissions',fmtN(KPI.est_total_admissions||0),'real booked seats today'],
+    ['Cinemas',fmtN((s.cinemas||[]).length),'Cinépolis in Delhi-NCR'],
+    ['Movies running',fmtN(s.top_movies.length),'distinct titles'],
+  ];
+  document.getElementById('kpis').innerHTML=k.map(([l,v,sub])=>
+    `<div class="card kpi"><div class="label">${l}</div><div class="value">${v}</div><div class="sub">${sub}</div></div>`).join('');
+}
+function renderMovies(){
+  document.querySelector('#movies tbody').innerHTML=SUMMARY.top_movies.map(m=>
+    `<tr><td>${m.title}</td><td class="num">${m.shows}</td><td>${bar(m.avg_occ)}</td></tr>`).join('')
+    ||'<tr><td colspan=3 class="empty">No shows</td></tr>';
+}
+function renderShare(){
+  const s=SUMMARY,tot=s.pvr_shows+s.competitor_shows||1;
+  const p=Math.round(100*s.pvr_shows/tot),c=100-p;
+  document.getElementById('share').innerHTML=
+    `<div style="width:${p}%;background:var(--pvr)">${p>8?'PVR-group '+p+'%':''}</div>
+     <div style="width:${c}%;background:var(--blue)">${c>8?'Competition '+c+'%':''}</div>`;
+  const fd=SUMMARY.fill_distribution||{},ftot=Object.values(fd).reduce((a,b)=>a+b,0)||1;
+  const order=['Available','Fast Filling','Almost Full','Sold Out / Closed','Unknown'];
+  document.getElementById('fillmix').innerHTML=order.filter(k=>fd[k]).map(k=>{
+    const w=Math.round(100*fd[k]/ftot);return `<div title="${k}: ${fd[k]}" style="width:${w}%;background:${FILLCOL[k]}">${w>10?k.split(' ')[0]+' '+w+'%':''}</div>`}).join('');
+}
+function renderCinemas(){
+  document.querySelector('#cinemas tbody').innerHTML=SUMMARY.cinemas.map(c=>
+    `<tr><td>${c.cinema}</td><td><span class="chip ${c.chain}">${c.chain}</span></td>
+     <td class="num">${c.shows}</td><td class="num" style="color:${occColor(c.avg_occ)}">${c.avg_occ??'—'}</td></tr>`).join('')
+    ||'<tr><td colspan=4 class="empty">No cinemas</td></tr>';
+}
+function renderSessions(){
+  document.querySelector('#sessions tbody').innerHTML=SESSIONS.map(r=>
+    `<tr><td>${r.cinema_name}</td><td><span class="chip ${r.chain}">${r.chain}</span></td>
+     <td>${r.title}</td><td>${r.format||''}</td><td>${r.show_time||''}</td>
+     <td>${fillChip(r)}</td>
+     <td class="num">${r.seats_booked??'—'}</td><td class="num">${r.seats_total??'—'}</td>
+     <td><a class="sess" onclick="velocity('${r.id}','${(r.title+' · '+r.cinema_name).replace(/'/g,'')}')">${bar(r.occupancy_pct)}${r.is_exact?' <span title="exact from seat map">✓</span>':''}</a></td>
+     <td>${r.bms_url?`<a class="sess" href="${r.bms_url}" target="_blank" rel="noopener" title="Open on BookMyShow">🎟 Book ↗</a>`:'—'}</td></tr>`).join('')
+    ||'<tr><td colspan=10 class="empty">No shows — run a crawl pass</td></tr>';
+}
+
+const DIAGCOL={'Under-showcased':'var(--good)','Over-showcased':'var(--bad)','Balanced':'var(--muted)'};
+function renderKpiTable(){
+  const k=KPI;
+  document.getElementById('kpihead').innerHTML=
+    `<span style="font-size:13px">Competitive Show Index (PVR-INOX ÷ Cinepolis): <b style="color:var(--pvr);font-size:18px">${k.competitive_show_index??'—'}×</b>
+     &nbsp;·&nbsp; PVR-INOX <b>${fmtN(k.pvr_shows)}</b> shows vs Cinepolis <b>${fmtN(k.cinepolis_shows)}</b>
+     &nbsp;·&nbsp; est. admissions <b>${fmtN(k.est_total_admissions)}</b></span>`;
+  document.querySelector('#kpis tbody').innerHTML=(k.movies||[]).map(m=>{
+    const idxc=m.allocation_index>=1.15?'var(--good)':m.allocation_index<=0.85?'var(--bad)':'var(--text)';
+    const csi=m.competitive_show_index; const csis=csi===null?'—':(csi===Infinity||csi>999?'∞':csi);
+    return `<tr><td>${m.title}</td><td class="num">${m.shows}</td><td class="num">${m.adm_per_show}</td>
+      <td class="num" style="color:${occColor(m.avg_occ)}">${m.avg_occ??'—'}</td>
+      <td style="color:${idxc}">${m.allocation_index??'—'} <span style="font-size:10px;color:${DIAGCOL[m.diagnosis]}">${m.diagnosis==='Balanced'?'':m.diagnosis.split('-')[0]}</span></td>
+      <td class="num">${m.prime_time_pct}</td><td class="num">${m.catchment_pct}</td>
+      <td class="num">${csis}</td><td class="num" style="color:${m.opportunity_extra_shows>0?'var(--good)':'var(--muted)'}">${m.opportunity_extra_shows||'—'}</td></tr>`}).join('')
+    ||'<tr><td colspan=9 class="empty">No data</td></tr>';
+}
+function renderAlloc(){
+  document.querySelector('#alloc tbody').innerHTML=(ALLOC||[]).map(a=>
+    `<tr><td>${a.film}</td><td class="num">${a.admissions_share}</td><td class="num">${a.show_share}</td>
+     <td class="num">${a.allocation_index??'—'}</td>
+     <td><span style="color:${DIAGCOL[a.diagnosis]}">${a.diagnosis}</span></td></tr>`).join('')
+    ||'<tr><td colspan=5 class="empty">No data</td></tr>';
+}
+function renderH2H(){
+  document.querySelector('#h2h tbody').innerHTML=(H2H.movies||[]).map(m=>
+    `<tr><td>${m.title}</td><td class="num">${m.pvr_shows}</td><td class="num">${m.cine_shows}</td>
+     <td class="num" style="color:${m.show_gap>=0?'var(--good)':'var(--bad)'}">${m.show_gap>0?'+':''}${m.show_gap}</td>
+     <td class="num" style="color:${occColor(m.pvr_occ)}">${m.pvr_occ??'—'}</td>
+     <td class="num" style="color:${occColor(m.cine_occ)}">${m.cine_occ??'—'}</td></tr>`).join('')
+    ||'<tr><td colspan=6 class="empty">No overlapping titles</td></tr>';
+}
+
+function renderRecs(){
+  const rs=RECS.recommendations||[];
+  document.getElementById('recsummary').innerHTML=rs.length
+    ? `<b style="color:var(--pvr)">${rs.length}</b> opportunities · est. <b style="color:var(--good)">+${fmtN(RECS.total_uplift)}</b> incremental tickets/day if actioned`
+    : 'No swap opportunities clear the demand threshold for this selection — programming looks well-matched to demand.';
+  document.querySelector('#recs tbody').innerHTML=rs.map(r=>
+    `<tr title="${r.rationale.replace(/"/g,'')}">
+      <td>${r.slot}</td><td>${r.cinema}</td><td><span class="chip ${r.chain}">${r.chain}</span></td>
+      <td>${r.current_movie} <span style="color:${occColor(r.current_occ)}">${r.current_occ}%</span></td>
+      <td style="color:var(--pvr)">${r.suggested_movie}</td>
+      <td class="num">${r.suggested_demand}</td>
+      <td class="num">${r.competitor_shows_of_suggested}</td>
+      <td class="num" style="color:var(--good)">+${r.est_uplift_tickets}</td></tr>`).join('')
+    ||'<tr><td colspan=8 class="empty">No recommendations</td></tr>';
+}
+
+async function velocity(id,title){
+  const d=await (await fetch('/api/velocity/'+id)).json();
+  document.getElementById('mtitle').textContent='Fill velocity — '+title;
+  document.getElementById('chart').innerHTML=d.length<1?'<div class="empty">Only one snapshot so far</div>':svgLine(d);
+  document.getElementById('modal').style.display='flex';
+}
+function closeModal(){document.getElementById('modal').style.display='none'}
+function svgLine(d){
+  const W=620,H=260,P=40;
+  const xs=d.map((_,i)=>P+i*(W-2*P)/Math.max(1,d.length-1));
+  const ys=d.map(p=>H-P-(p.occupancy_pct/100)*(H-2*P));
+  const pts=xs.map((x,i)=>`${x},${ys[i]}`).join(' ');
+  const dots=xs.map((x,i)=>`<circle cx="${x}" cy="${ys[i]}" r="4" fill="var(--pvr)"/>
+    <text x="${x}" y="${ys[i]-10}" fill="var(--text)" font-size="11" text-anchor="middle">${d[i].occupancy_pct}%</text>`).join('');
+  const labels=d.map((p,i)=>`<text x="${xs[i]}" y="${H-16}" fill="var(--muted)" font-size="10" text-anchor="middle">${new Date(p.crawl_ts).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}</text>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%">
+    ${[0,25,50,75,100].map(g=>{const y=H-P-(g/100)*(H-2*P);
+      return `<line x1="${P}" y1="${y}" x2="${W-P}" y2="${y}" stroke="var(--line)"/>
+        <text x="${P-8}" y="${y+3}" fill="var(--muted)" font-size="10" text-anchor="end">${g}%</text>`}).join('')}
+    <polyline points="${pts}" fill="none" stroke="var(--pvr)" stroke-width="2.5"/>${dots}${labels}</svg>`;
+}
+
+function downloadCSV(){
+  const head=['cinema','chain','movie','format','time','booked','seats','occupancy_pct','est_revenue'];
+  const rows=SESSIONS.map(r=>[r.cinema_name,r.chain,r.title,r.format,r.show_time,r.seats_booked,r.seats_total,r.occupancy_pct,r.est_revenue]);
+  const csv=[head.join(',')].concat(rows.map(r=>r.map(x=>`"${x??''}"`).join(','))).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=`pvr_ncr_${DATE}.csv`;a.click();
+}
+
+(async()=>{await loadDates();await refresh();setInterval(refresh,60000);})();
+</script>
+</body>
+</html>

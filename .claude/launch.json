@@ -1,0 +1,1 @@
+{"version":"0.0.1","configurations":[{"name":"pvr-dashboard","runtimeExecutable":".venv/bin/python","runtimeArgs":["web/server.py"],"port":5061}]}

@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: pvr-programming-dashboard
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --chdir web server:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: PVR_DB_PATH
+        value: /var/data/pvr.db
+    disk:
+      name: pvr-data
+      mountPath: /var/data
+      sizeGB: 1

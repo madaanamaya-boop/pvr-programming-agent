@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+pvr.db
+storage_state.json
+logs/
+data/
+*.log
+.DS_Store
+service_account.json
